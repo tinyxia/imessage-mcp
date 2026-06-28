@@ -5,7 +5,7 @@
   "type": "module",
   "main": "index.js",
   "bin": {
-    "imessage-mcp": "./index.js"
+    "imessage-mcp-server": "./index.js"
   },
   "publishConfig": {
     "access": "public"
