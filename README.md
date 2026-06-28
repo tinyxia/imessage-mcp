@@ -1,7 +1,7 @@
 # imessage-mcp-server
 
-> **MCP server for reading and sending iMessages on macOS**  
-> Expose your iMessage history and send capabilities via the [Model Context Protocol](https://modelcontextprotocol.io).
+> **MCP server + AI bridge for iMessage on macOS**  
+> Expose your iMessage history and send capabilities via the [Model Context Protocol](https://modelcontextprotocol.io), or turn your Mac into a 24/7 AI assistant that auto-replies to your iMessages.
 
 ⚠️ **macOS only** — requires the Messages app and its SQLite database (`~/Library/Messages/chat.db`).
 
@@ -9,14 +9,25 @@
 
 ## Features
 
-This MCP server provides **4 tools** for interacting with iMessage:
+### MCP Server mode
+Four standard MCP tools for reading and sending iMessages:
 
 | Tool | Description |
 |------|-------------|
 | `send_imessage` | Send an iMessage to a recipient's email or phone number |
 | `list_conversations` | List recent conversations with latest message preview and unread count |
-| `read_conversation` | Read paginated messages from a specific conversation (by chat_id or handle) |
+| `read_conversation` | Read paginated messages from a specific conversation |
 | `get_new_messages` | Poll for new incoming messages since a timestamp |
+
+### Bridge mode
+Run an autonomous AI agent in the background:
+
+- Polls for new iMessages from your configured `masterHandle`
+- Sends them to Claude, OpenAI, DeepSeek, Kimi, or any OpenAI-compatible model
+- Connects any MCP Servers as tools (filesystem, shell, git, etc.)
+- Auto-replies with results
+- Remembers conversation context
+- Supports macOS LaunchAgent for auto-start on login
 
 ---
 
@@ -38,9 +49,22 @@ xcode-select --install
 
 ## Quick Start
 
-### Option 1: npx (recommended)
+### MCP Server mode
 
-No installation needed — just add to your MCP configuration:
+Add to your MCP configuration:
+
+**Claude Code** (`.claude/settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "imessage": {
+      "command": "npx",
+      "args": ["-y", "imessage-mcp-server", "--server"]
+    }
+  }
+}
+```
 
 **Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 
@@ -49,20 +73,7 @@ No installation needed — just add to your MCP configuration:
   "mcpServers": {
     "imessage": {
       "command": "npx",
-      "args": ["-y", "imessage-mcp-server"]
-    }
-  }
-}
-```
-
-**Claude Code** (`.claude/settings.json` in your project):
-
-```json
-{
-  "mcpServers": {
-    "imessage": {
-      "command": "npx",
-      "args": ["-y", "imessage-mcp-server"]
+      "args": ["-y", "imessage-mcp-server", "--server"]
     }
   }
 }
@@ -75,129 +86,190 @@ No installation needed — just add to your MCP configuration:
   "mcpServers": {
     "imessage": {
       "command": "npx",
-      "args": ["-y", "imessage-mcp-server"]
+      "args": ["-y", "imessage-mcp-server", "--server"]
     }
   }
 }
 ```
 
-**VS Code + GitHub Copilot** (`.vscode/mcp.json`):
+### Bridge mode
+
+Create a `bridge-config.json`:
 
 ```json
 {
-  "servers": {
-    "imessage": {
+  "masterHandle": "your-email@icloud.com",
+  "provider": "anthropic",
+  "apiKey": "${ANTHROPIC_API_KEY}",
+  "model": "claude-3-5-sonnet-20241022",
+  "mcpServers": {
+    "filesystem": {
       "command": "npx",
-      "args": ["-y", "imessage-mcp-server"]
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/Users/YOU"]
     }
   }
 }
 ```
 
-### Option 2: Global install
+Run in foreground for testing:
 
 ```bash
-npm install -g imessage-mcp-server
+npx imessage-mcp-server --bridge --config ./bridge-config.json --foreground
 ```
 
-Then reference the binary directly in your MCP config:
+### Install as a service (macOS LaunchAgent)
 
-```json
-{
-  "mcpServers": {
-    "imessage": {
-      "command": "imessage-mcp",
-      "args": []
-    }
-  }
-}
-```
-
-### Option 3: Clone from source
+When running as a LaunchAgent, the bridge does **not** inherit environment variables from your shell. Put the API key directly in `bridge-config.json` (or use a config file that does not rely on `${...}` env substitution):
 
 ```bash
-git clone https://github.com/tinyxia/imessage-mcp.git
-cd imessage-mcp
-npm install
-```
-
-Then reference the local path:
-
-```json
-{
-  "mcpServers": {
-    "imessage": {
-      "command": "node",
-      "args": ["/path/to/imessage-mcp/index.js"]
-    }
-  }
-}
+npx imessage-mcp-server --bridge --install-service --config ./bridge-config.json
+npx imessage-mcp-server --bridge --status
+npx imessage-mcp-server --bridge --uninstall
 ```
 
 ---
 
-## Tool Reference
+## CLI Reference
+
+```bash
+# Show help / version
+npx imessage-mcp-server --help
+npx imessage-mcp-server --version
+
+# MCP Server mode
+npx imessage-mcp-server --server
+
+# Bridge mode
+npx imessage-mcp-server --bridge --config ./bridge-config.json
+npx imessage-mcp-server --bridge --foreground
+npx imessage-mcp-server --bridge --test-config
+npx imessage-mcp-server --bridge --install-service --config ./bridge-config.json
+npx imessage-mcp-server --bridge --status
+npx imessage-mcp-server --bridge --uninstall
+```
+
+---
+
+## Bridge Configuration
+
+### Schema
+
+```json
+{
+  "masterHandle": "your-email@icloud.com",
+  "provider": "anthropic",
+  "apiKey": "${ANTHROPIC_API_KEY}",
+  "baseUrl": null,
+  "model": "claude-3-5-sonnet-20241022",
+  "maxTokens": 4096,
+  "pollIntervalMs": 3000,
+  "maxHistoryPerConversation": 20,
+  "maxToolIterations": 10,
+  "sendProcessingIndicator": true,
+  "systemPrompt": "Optional custom system prompt",
+  "projectDir": "/Users/YOU/project",
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/Users/YOU"]
+    },
+    "shell": {
+      "command": "npx",
+      "args": ["-y", "mcp-shell-server"]
+    }
+  },
+  "safety": {
+    "requireConfirmation": false,
+    "allowedTools": null,
+    "blockedTools": [],
+    "blockedCommands": ["rm -rf /", "sudo"],
+    "readOnly": false
+  }
+}
+```
+
+### Supported providers
+
+| Provider | `provider` value | Notes |
+|----------|------------------|-------|
+| Anthropic / Claude | `anthropic` or `claude` | Native thinking blocks |
+| OpenAI | `openai` | Official API |
+| DeepSeek | `deepseek` | OpenAI-compatible endpoint |
+| Kimi | `kimi` | OpenAI-compatible endpoint |
+| Any OpenAI-compatible | `openai` | Set `baseUrl` |
+
+### Environment variables
+
+| Variable | Description |
+|----------|-------------|
+| `IMESSAGE_DB_PATH` | Override the path to `chat.db` |
+| `IMESSAGE_MASTER_HANDLE` | Your iMessage handle for bridge mode |
+| `IMESSAGE_PROVIDER` | Default LLM provider |
+| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | API keys |
+| `ANTHROPIC_BASE_URL` / `OPENAI_BASE_URL` | Custom API endpoints |
+
+---
+
+## MCP Tools (Server mode)
 
 ### `send_imessage`
 
 Send an iMessage to a recipient.
 
-**Parameters:**
-
-| Param | Type | Required | Description |
-|-------|------|----------|-------------|
-| `recipient` | string | ✅ | Email address or phone number of the recipient |
-| `text` | string | ✅ | Message text to send |
-
-**Example:**
 ```json
 { "recipient": "example@icloud.com", "text": "Hello from MCP!" }
 ```
 
 ### `list_conversations`
 
-List recent conversations with the latest message preview and unread count.
+List recent iMessage conversations.
 
-**Parameters:**
-
-| Param | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| `limit` | number | ❌ | 20 | Max conversations to return (max 100) |
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `limit` | number | 20 | Max conversations (max 100) |
 
 ### `read_conversation`
 
 Read messages from a specific conversation.
 
-**Parameters:**
-
-| Param | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| `handle` | string | ❌ | — | Filter by handle (email or phone number) |
-| `chat_id` | number | ❌ | — | Filter by chat ROWID |
-| `limit` | number | ❌ | 30 | Max messages to return (max 200) |
-| `before_id` | number | ❌ | — | Paginate: return messages before this ROWID |
-| `include_read` | boolean | ❌ | true | Include already-read messages |
-| `unread_only` | boolean | ❌ | false | Only return unread messages |
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `handle` | string | — | Filter by email/phone |
+| `chat_id` | number | — | Filter by chat ROWID |
+| `limit` | number | 30 | Max messages (max 200) |
+| `before_id` | number | — | Paginate before ROWID |
+| `include_read` | boolean | true | Include read messages |
+| `unread_only` | boolean | false | Only unread |
 
 ### `get_new_messages`
 
 Poll for recently received messages.
 
-**Parameters:**
-
-| Param | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| `since` | string | ❌ | last 10 | ISO timestamp to fetch messages from (e.g. `2026-06-28T10:00:00.000Z`) |
-| `mark_read` | boolean | ❌ | false | Mark unread messages as read in chat.db |
-| `max_results` | number | ❌ | 10 | Max messages to return (max 100) |
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `since` | string | — | ISO timestamp |
+| `max_results` | number | 10 | Max messages (max 100) |
+| `unread_only` | boolean | false | Only unread |
 
 ---
 
-## Environment Variables
+## Bridge Tools
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `IMESSAGE_DB_PATH` | `~/Library/Messages/chat.db` | Override the path to the iMessage chat database |
+In bridge mode, the AI can use any tools exposed by the configured MCP servers, plus two built-in local tools:
+
+- `send_imessage` — send a message to any recipient
+- `send_long_reply` — split a long response into multiple iMessages
+
+---
+
+## Security Notes
+
+- The iMessage database is opened in **read-only mode** for all read operations.
+- Bridge mode only processes messages from the configured `masterHandle`; all other senders are ignored.
+- Use `safety.readOnly: true` to prevent write tools.
+- Use `safety.allowedTools` to whitelist allowed tools.
+- Use `safety.blockedCommands` to blacklist dangerous shell patterns.
+- All chat data stays on your Mac; only API calls to your chosen LLM provider leave the machine.
 
 ---
 
@@ -205,21 +277,12 @@ Poll for recently received messages.
 
 | Problem | Solution |
 |---------|----------|
-| ❌ **iMessage database not found** | Make sure you are signed into iMessage in the Messages app. If your database is in a non-standard location, set `IMESSAGE_DB_PATH`. |
-| 🔒 **Permission denied / database unreadable** | Grant **Full Disk Access** to your terminal/IDE in _System Settings → Privacy & Security → Full Disk Access_. Restart your terminal after granting. |
-| 🔐 **"Database is locked"** | Quit the Messages app completely or wait for sync to finish. |
-| 💻 **osascript failed** | Make sure Messages.app is running and signed into your Apple ID. |
-| ⚠️ **better-sqlite3 compilation errors** | Install Xcode CLI Tools: `xcode-select --install` and try again. |
-| 🐢 **First `npx` run is slow** | npx downloads and compiles native modules on first run. Subsequent runs are cached. |
-
----
-
-## Security Notes
-
-- The iMessage database is opened in **read-only mode** (`chat.db` is never modified by read operations)
-- The `mark_read` option in `get_new_messages` is the only operation that writes to the database
-- Sending messages is done through **AppleScript** (`osascript`) which respects macOS privacy controls
-- Your chat data **never leaves your machine** — all processing is local
+| ❌ iMessage database not found | Sign into Messages app or set `IMESSAGE_DB_PATH`. |
+| 🔒 Permission denied | Grant **Full Disk Access** to your terminal/IDE. |
+| 🔐 "Database is locked" | Quit Messages app or wait for sync. |
+| 💻 osascript failed | Make sure Messages.app is running and signed in. |
+| ⚠️ better-sqlite3 compile errors | Run `xcode-select --install`. |
+| 🐢 First `npx` run is slow | Native modules compile on first run; later runs are cached. |
 
 ---
 

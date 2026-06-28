@@ -1,23 +1,25 @@
 {
   "name": "imessage-mcp-server",
-  "version": "1.0.0",
-  "description": "MCP server for reading and sending iMessages on macOS",
+  "version": "2.0.0",
+  "description": "MCP server and AI bridge for iMessage on macOS",
   "type": "module",
-  "main": "index.js",
   "bin": {
-    "imessage-mcp-server": "./index.js"
+    "imessage-mcp-server": "./bin/imessage-mcp-server"
   },
   "publishConfig": {
     "access": "public"
   },
   "files": [
-    "index.js",
+    "bin/",
+    "src/",
+    "scripts/",
     "README.md",
     "LICENSE"
   ],
   "preferUnplugged": true,
   "scripts": {
-    "start": "node index.js",
+    "start": "node bin/imessage-mcp-server --server",
+    "bridge": "node bin/imessage-mcp-server --bridge",
     "test": "echo \"No tests yet\" && exit 0"
   },
   "keywords": [
@@ -28,7 +30,10 @@
     "macos",
     "messages",
     "icloud",
-    "apple"
+    "apple",
+    "ai",
+    "bridge",
+    "agent"
   ],
   "author": "tinyxia",
   "license": "MIT",
@@ -44,7 +49,9 @@
     "url": "https://github.com/tinyxia/imessage-mcp/issues"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.30.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "better-sqlite3": "^12.11.1"
+    "better-sqlite3": "^12.11.1",
+    "openai": "^4.0.0"
   }
 }
