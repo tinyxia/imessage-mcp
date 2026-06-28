@@ -3,6 +3,8 @@
 > **MCP server + AI bridge for iMessage on macOS**  
 > Expose your iMessage history and send capabilities via the [Model Context Protocol](https://modelcontextprotocol.io), or turn your Mac into a 24/7 AI assistant that auto-replies to your iMessages.
 
+[中文 README](README.zh.md)
+
 ⚠️ **macOS only** — requires the Messages app and its SQLite database (`~/Library/Messages/chat.db`).
 
 ---
@@ -92,6 +94,19 @@ Add to your MCP configuration:
 }
 ```
 
+**VS Code + GitHub Copilot** (`.vscode/mcp.json`):
+
+```json
+{
+  "servers": {
+    "imessage": {
+      "command": "npx",
+      "args": ["-y", "imessage-mcp-server", "--server"]
+    }
+  }
+}
+```
+
 ### Bridge mode
 
 Create a `bridge-config.json`:
@@ -117,15 +132,15 @@ Run in foreground for testing:
 npx imessage-mcp-server --bridge --config ./bridge-config.json --foreground
 ```
 
-### Install as a service (macOS LaunchAgent)
-
-When running as a LaunchAgent, the bridge does **not** inherit environment variables from your shell. Put the API key directly in `bridge-config.json` (or use a config file that does not rely on `${...}` env substitution):
+Install as a macOS LaunchAgent (auto-start on login):
 
 ```bash
 npx imessage-mcp-server --bridge --install-service --config ./bridge-config.json
 npx imessage-mcp-server --bridge --status
 npx imessage-mcp-server --bridge --uninstall
 ```
+
+> **Note:** When running as a LaunchAgent, the bridge does **not** inherit environment variables from your shell. If your `apiKey` uses `${ANTHROPIC_API_KEY}` env substitution, the service won't be able to resolve it. Put the API key directly in the config file instead.
 
 ---
 
@@ -152,7 +167,7 @@ npx imessage-mcp-server --bridge --uninstall
 
 ## Bridge Configuration
 
-### Schema
+### Full schema
 
 ```json
 {
@@ -207,6 +222,8 @@ npx imessage-mcp-server --bridge --uninstall
 | `IMESSAGE_PROVIDER` | Default LLM provider |
 | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | API keys |
 | `ANTHROPIC_BASE_URL` / `OPENAI_BASE_URL` | Custom API endpoints |
+
+Config files support `${VAR_NAME}` syntax for env substitution.
 
 ---
 
